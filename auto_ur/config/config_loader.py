@@ -1,4 +1,4 @@
-"""YAML configuration loader for the autoUR demo package."""
+"""YAML configuration loader for the auto_ur demo package."""
 
 from pathlib import Path
 from typing import Any
@@ -9,7 +9,7 @@ import yaml
 class ConfigLoader:
     """Load YAML configuration from the source tree or installed package."""
 
-    def __init__(self, package_name: str = 'autoUR',
+    def __init__(self, package_name: str = 'auto_ur',
                  config_root: Path | None = None):
         """Create a loader for package configuration files."""
         self.package_name = package_name

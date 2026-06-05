@@ -2,8 +2,8 @@
 
 from typing import Any
 
-from autoUR.core import ActionResult
-from autoUR.primitives import move_to_pose
+from auto_ur.core import ActionResult
+from auto_ur.primitives import move_to_pose
 
 
 def pick_and_place_demo(arm: Any, config_loader: Any,

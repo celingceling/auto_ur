@@ -1,6 +1,6 @@
-# autoUR MoveIt-First Demo Architecture
+# auto_ur MoveIt-First Demo Architecture
 
-autoUR is currently a minimal ROS 2 Jazzy and MoveIt 2 demo package for UR10e
+auto_ur is currently a minimal ROS 2 Jazzy and MoveIt 2 demo package for UR10e
 plan-only motion. The package uses MoveItPy directly so the first working demo
 is easy to inspect and debug.
 
@@ -23,7 +23,7 @@ There is no adapter layer and no abstract interface layer in this version.
 The demo exposes three primitives through:
 
 ```python
-from autoUR import primitives as prims
+from auto_ur import primitives as prims
 ```
 
 `prims.move_to_named_pose(...)` loads a named UR10e joint state from YAML and

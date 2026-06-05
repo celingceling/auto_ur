@@ -3,11 +3,11 @@
 import os
 from pathlib import Path
 
-from autoUR.config import ConfigLoader
-from autoUR.core import ActionResult, ActionSpec
-from autoUR.primitives import move_to_joint_state, move_to_pose
-from autoUR.registry.default_actions import build_default_registry
-from autoUR.skills import pick_and_place_demo
+from auto_ur.config import ConfigLoader
+from auto_ur.core import ActionResult, ActionSpec
+from auto_ur.primitives import move_to_joint_state, move_to_pose
+from auto_ur.registry.default_actions import build_default_registry
+from auto_ur.skills import pick_and_place_demo
 import pytest
 import yaml
 
@@ -152,15 +152,15 @@ def test_pick_and_place_demo_with_fake_arm():
 def test_primitives_and_skills_do_not_execute():
     """Verify primitive and skill sources do not execute trajectories."""
     package_root = Path(__file__).resolve().parents[1]
-    source_files = list((package_root / 'autoUR' / 'primitives').glob('*.py'))
-    source_files += list((package_root / 'autoUR' / 'skills').glob('*.py'))
+    source_files = list((package_root / 'auto_ur' / 'primitives').glob('*.py'))
+    source_files += list((package_root / 'auto_ur' / 'skills').glob('*.py'))
 
     for source_file in source_files:
         assert '.execute(' not in source_file.read_text(encoding='utf-8')
 
 
 @pytest.mark.skipif(
-    os.getenv('AUTOUR_RUN_MOVEIT_TESTS') != '1',
+    os.getenv('AUTO_UR_RUN_MOVEIT_TESTS') != '1',
     reason='MoveIt integration smoke test is opt-in.',
 )
 def test_optional_moveit_named_joint_plan_smoke():

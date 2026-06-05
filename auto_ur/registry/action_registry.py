@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from autoUR.core import ActionSpec
+from auto_ur.core import ActionSpec
 
 
 @dataclass(frozen=True)

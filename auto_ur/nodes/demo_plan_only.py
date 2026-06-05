@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from autoUR import primitives as prims
-from autoUR.config import ConfigLoader
-from autoUR.registry.default_actions import build_default_registry
-from autoUR.skills import pick_and_place_demo
+from auto_ur import primitives as prims
+from auto_ur.config import ConfigLoader
+from auto_ur.registry.default_actions import build_default_registry
+from auto_ur.skills import pick_and_place_demo
 
 
 def main() -> None:
@@ -15,7 +15,7 @@ def main() -> None:
     from rclpy.logging import get_logger
 
     rclpy.init()
-    logger = get_logger('autoUR_demo_plan_only')
+    logger = get_logger('auto_ur_demo_plan_only')
 
     try:
         loader = ConfigLoader()
@@ -26,7 +26,7 @@ def main() -> None:
         planning_group = robot.get('planning_group', 'ur_manipulator')
         tool_frame = robot.get('tool_frame', 'tool0')
 
-        moveit = MoveItPy(node_name='autoUR_demo_plan_only')
+        moveit = MoveItPy(node_name='auto_ur_demo_plan_only')
         moveit.planning_group = planning_group
         arm = moveit.get_planning_component(planning_group)
         robot_model = moveit.get_robot_model()

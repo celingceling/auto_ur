@@ -1,9 +1,9 @@
 """Default action registry for the plan-only UR10e demo."""
 
-from autoUR import primitives as prims
-from autoUR.core import ActionSpec
-from autoUR.registry.action_registry import ActionRegistry
-from autoUR.skills import pick_and_place_demo
+from auto_ur import primitives as prims
+from auto_ur.core import ActionSpec
+from auto_ur.registry.action_registry import ActionRegistry
+from auto_ur.skills import pick_and_place_demo
 
 
 def build_default_registry() -> ActionRegistry:

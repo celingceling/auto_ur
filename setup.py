@@ -2,7 +2,7 @@ from glob import glob
 
 from setuptools import find_packages, setup
 
-package_name = 'autoUR'
+package_name = 'auto_ur'
 
 setup(
     name=package_name,
@@ -27,7 +27,7 @@ setup(
     zip_safe=True,
     maintainer='celing-24-04',
     maintainer_email='celing-24-04@todo.todo',
-    description='TODO: Package description',
+    description='MoveItPy-first UR10e plan-only demo package',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -36,8 +36,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'autoUR = autoUR.autoUR:main',
-            'autoUR_demo_plan_only = autoUR.nodes.demo_plan_only:main',
+            'auto_ur = auto_ur.auto_ur:main',
+            'auto_ur_demo_plan_only = auto_ur.nodes.demo_plan_only:main',
         ],
     },
 )

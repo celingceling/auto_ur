@@ -1,9 +1,9 @@
-"""Console entry point for the autoUR package placeholder."""
+"""Console entry point for the auto_ur package placeholder."""
 
 
 def main():
     """Run the generated package placeholder command."""
-    print('Hi from autoUR.')
+    print('Hi from auto_ur.')
 
 
 if __name__ == '__main__':

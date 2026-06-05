@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-from autoUR.core import ActionResult
+from auto_ur.core import ActionResult
 
 
 def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
