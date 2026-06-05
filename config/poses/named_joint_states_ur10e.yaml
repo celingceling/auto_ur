@@ -1,0 +1,22 @@
+named_joint_states:
+  home:
+    shoulder_pan_joint: 0.0
+    shoulder_lift_joint: -1.5708
+    elbow_joint: 0.0
+    wrist_1_joint: -1.5708
+    wrist_2_joint: 0.0
+    wrist_3_joint: 0.0
+  ready:
+    shoulder_pan_joint: 0.0
+    shoulder_lift_joint: -1.2
+    elbow_joint: 1.8
+    wrist_1_joint: -2.1
+    wrist_2_joint: -1.5708
+    wrist_3_joint: 0.0
+  demo_start:
+    shoulder_pan_joint: -0.4
+    shoulder_lift_joint: -1.1
+    elbow_joint: 1.7
+    wrist_1_joint: -2.2
+    wrist_2_joint: -1.5708
+    wrist_3_joint: 0.2

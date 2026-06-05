@@ -1,0 +1,14 @@
+demo:
+  name: ur10e_plan_only_demo
+  robot: ur10e
+  mode: plan_only
+  sequence:
+    - action: move_to_named_pose
+      pose_name: demo_start
+    - action: move_to_joint_state
+      joint_state_name: ready
+    - action: move_to_pose
+      pose_name: pre_pick
+    - action: pick_and_place_demo
+      pick_pose_name: pick
+      place_pose_name: place

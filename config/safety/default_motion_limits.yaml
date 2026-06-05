@@ -1,0 +1,8 @@
+safety:
+  name: default_motion_limits
+  max_velocity_scale: 0.25
+  max_acceleration_scale: 0.25
+  planning_timeout_s: 5.0
+  require_collision_checking: true
+  allow_hardware_execution: false
+  notes: Conservative placeholder limits for non-hardware Stage 1.

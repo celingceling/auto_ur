@@ -1,0 +1,158 @@
+"""Direct MoveItPy primitive planning functions for the UR10e arm."""
+
+from types import SimpleNamespace
+from typing import Any
+
+from autoUR.core import ActionResult
+
+
+def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
+                       config_loader: Any, pose_name: str) -> ActionResult:
+    """Plan to a named UR10e joint state."""
+    joint_states = config_loader.load_named_joint_states('ur10e')
+    named_states = joint_states.get('named_joint_states', {})
+    joint_positions = named_states.get(pose_name)
+    if joint_positions is None:
+        return ActionResult(
+            success=False,
+            message=f'Unknown named joint state: {pose_name}',
+            data={'action_name': 'move_to_named_pose', 'pose_name': pose_name},
+        )
+
+    result = move_to_joint_state(moveit, arm, robot_model, joint_positions)
+    result.data.update({
+        'action_name': 'move_to_named_pose',
+        'pose_name': pose_name,
+    })
+    return result
+
+
+def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
+                        joint_positions: dict[str, float]) -> ActionResult:
+    """Plan to explicit joint positions without executing the trajectory."""
+    try:
+        planning_group = _planning_group_from(moveit)
+        arm.set_start_state_to_current_state()
+        constraints = _make_joint_constraints(
+            robot_model,
+            joint_positions,
+            planning_group,
+        )
+        if constraints is None:
+            arm.set_goal_state(robot_state=joint_positions)
+        else:
+            arm.set_goal_state(motion_plan_constraints=[constraints])
+
+        plan_result = arm.plan()
+        return _plan_result(
+            action_name='move_to_joint_state',
+            plan_result=plan_result,
+            extra_data={'joint_positions': joint_positions},
+        )
+    except Exception as exc:
+        return ActionResult(
+            success=False,
+            message=f'move_to_joint_state failed: {exc}',
+            data={
+                'action_name': 'move_to_joint_state',
+                'joint_positions': joint_positions,
+            },
+        )
+
+
+def move_to_pose(arm: Any, pose: Any, tool_frame: str) -> ActionResult:
+    """Plan to a task-space end-effector pose without execution."""
+    try:
+        pose_msg = _as_pose_stamped(pose)
+        arm.set_start_state_to_current_state()
+        arm.set_goal_state(pose_stamped_msg=pose_msg, pose_link=tool_frame)
+        plan_result = arm.plan()
+        return _plan_result(
+            action_name='move_to_pose',
+            plan_result=plan_result,
+            extra_data={'pose': pose, 'tool_frame': tool_frame},
+        )
+    except Exception as exc:
+        return ActionResult(
+            success=False,
+            message=f'move_to_pose failed: {exc}',
+            data={
+                'action_name': 'move_to_pose',
+                'pose': pose,
+                'tool_frame': tool_frame,
+            },
+        )
+
+
+def _planning_group_from(moveit: Any) -> str:
+    """Return the configured planning group name from MoveItPy-like objects."""
+    return getattr(moveit, 'planning_group', 'ur_manipulator')
+
+
+def _make_joint_constraints(robot_model: Any,
+                            joint_positions: dict[str, float],
+                            planning_group: str) -> Any | None:
+    """Build MoveIt joint constraints when a real robot model is available."""
+    if robot_model is None:
+        return None
+
+    try:
+        from moveit.core.kinematic_constraints import construct_joint_constraint
+        from moveit.core.robot_state import RobotState
+    except Exception:
+        return None
+
+    robot_state = RobotState(robot_model)
+    robot_state.joint_positions = joint_positions
+    joint_model_group = robot_model.get_joint_model_group(planning_group)
+    return construct_joint_constraint(
+        robot_state=robot_state,
+        joint_model_group=joint_model_group,
+    )
+
+
+def _as_pose_stamped(pose: Any) -> Any:
+    """Convert a pose mapping to PoseStamped, or return PoseStamped-like input."""
+    if hasattr(pose, 'header') and hasattr(pose, 'pose'):
+        return pose
+
+    try:
+        from geometry_msgs.msg import PoseStamped
+
+        pose_msg = PoseStamped()
+    except Exception:
+        pose_msg = SimpleNamespace(
+            header=SimpleNamespace(frame_id='base_link'),
+            pose=SimpleNamespace(
+                position=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+                orientation=SimpleNamespace(x=0.0, y=0.0, z=0.0, w=1.0),
+            ),
+        )
+
+    pose_msg.header.frame_id = pose.get('frame_id', 'base_link')
+    position = pose.get('position', {})
+    orientation = pose.get('orientation', {})
+
+    pose_msg.pose.position.x = float(position.get('x', 0.0))
+    pose_msg.pose.position.y = float(position.get('y', 0.0))
+    pose_msg.pose.position.z = float(position.get('z', 0.0))
+    pose_msg.pose.orientation.x = float(orientation.get('x', 0.0))
+    pose_msg.pose.orientation.y = float(orientation.get('y', 0.0))
+    pose_msg.pose.orientation.z = float(orientation.get('z', 0.0))
+    pose_msg.pose.orientation.w = float(orientation.get('w', 1.0))
+    return pose_msg
+
+
+def _plan_result(action_name: str, plan_result: Any,
+                 extra_data: dict[str, Any]) -> ActionResult:
+    """Wrap a MoveItPy plan result in ActionResult."""
+    success = bool(plan_result)
+    trajectory = getattr(plan_result, 'trajectory', None)
+    message = 'Planning succeeded' if success else 'Planning failed'
+    data = {
+        'action_name': action_name,
+        'plan_result': plan_result,
+        'trajectory': trajectory,
+    }
+    data.update(extra_data)
+    return ActionResult(success=success, message=message, data=data)

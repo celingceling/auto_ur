@@ -1,0 +1,67 @@
+named_cartesian_poses:
+  pre_pick:
+    frame_id: base_link
+    position:
+      x: 0.55
+      y: -0.25
+      z: 0.35
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+  pick:
+    frame_id: base_link
+    position:
+      x: 0.55
+      y: -0.25
+      z: 0.18
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+  lift:
+    frame_id: base_link
+    position:
+      x: 0.55
+      y: -0.25
+      z: 0.42
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+  pre_place:
+    frame_id: base_link
+    position:
+      x: 0.45
+      y: 0.25
+      z: 0.35
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+  place:
+    frame_id: base_link
+    position:
+      x: 0.45
+      y: 0.25
+      z: 0.18
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+  retreat:
+    frame_id: base_link
+    position:
+      x: 0.35
+      y: 0.0
+      z: 0.45
+    orientation:
+      x: 0.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
