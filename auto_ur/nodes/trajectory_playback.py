@@ -1,12 +1,13 @@
 """Replay planned trajectories as joint states for RViz demos."""
 
 from collections import deque
+from copy import deepcopy
 
 from auto_ur.config import ConfigLoader
 
 
 def main() -> None:
-    """Animate received JointTrajectory messages on /joint_states."""
+    """Animate received JointTrajectory messages as demo joint states."""
     import rclpy
     from rclpy.duration import Duration
     from rclpy.node import Node
@@ -28,6 +29,10 @@ def main() -> None:
                 0.1,
                 float(self.declare_parameter('time_scale', 2.0).value),
             )
+            self._hold_duration = max(
+                0.0,
+                float(self.declare_parameter('hold_duration', 2.0).value),
+            )
             self._joint_names = robot['joint_names']
             self._positions = [
                 float(start_state.get(joint_name, 0.0))
@@ -35,9 +40,19 @@ def main() -> None:
             ]
             self._queue = deque()
             self._active = None
+            self._active_label = None
             self._active_started_at = None
             self._hold_until = None
-            self._publisher = self.create_publisher(JointState, 'joint_states', 10)
+            self._demo_publisher = self.create_publisher(
+                JointState,
+                '/auto_ur/joint_states',
+                10,
+            )
+            self._global_publisher = self.create_publisher(
+                JointState,
+                '/joint_states',
+                10,
+            )
             self.create_subscription(
                 JointTrajectory,
                 'auto_ur/planned_joint_trajectory',
@@ -64,15 +79,27 @@ def main() -> None:
                 self._hold_until = None
 
             if self._active is None and self._queue:
-                self._active = self._queue.popleft()
+                self._active = self._trajectory_from_current_state(
+                    self._queue.popleft()
+                )
+                self._active_label = _label_for(self._active)
                 self._active_started_at = now
+                self.get_logger().info(
+                    f'START trajectory: {self._active_label}'
+                )
 
             if self._active is not None:
                 finished = self._update_from_active(now)
                 if finished:
+                    self.get_logger().info(
+                        f'END trajectory: {self._active_label}'
+                    )
                     self._active = None
+                    self._active_label = None
                     self._active_started_at = None
-                    self._hold_until = now + Duration(seconds=1.0)
+                    self._hold_until = now + Duration(
+                        seconds=self._hold_duration
+                    )
 
             self._publish()
 
@@ -115,15 +142,40 @@ def main() -> None:
                 for joint_name, current in zip(self._joint_names, self._positions)
             ]
 
+        def _trajectory_from_current_state(
+            self,
+            trajectory: JointTrajectory,
+        ) -> JointTrajectory:
+            """Start every replay segment from the current visual state."""
+            replay = deepcopy(trajectory)
+            current_by_name = dict(zip(self._joint_names, self._positions))
+            replay.points[0].positions = [
+                float(current_by_name.get(joint_name, position))
+                for joint_name, position in zip(
+                    replay.joint_names,
+                    replay.points[0].positions,
+                )
+            ]
+            replay.points[0].velocities = []
+            replay.points[0].accelerations = []
+            return replay
+
         def _publish(self) -> None:
             message = JointState()
             message.header.stamp = self.get_clock().now().to_msg()
             message.name = self._joint_names
             message.position = self._positions
-            self._publisher.publish(message)
+            self._demo_publisher.publish(message)
+            self._global_publisher.publish(message)
 
     def _seconds_from_duration(duration: object) -> float:
         return float(duration.sec) + (float(duration.nanosec) / 1e9)
+
+    def _label_for(trajectory: JointTrajectory) -> str:
+        label = trajectory.header.frame_id.strip()
+        if label:
+            return label
+        return 'unlabeled_trajectory'
 
     rclpy.init()
     node = TrajectoryPlayback()

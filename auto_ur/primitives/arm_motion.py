@@ -7,7 +7,8 @@ from auto_ur.core import ActionResult
 
 
 def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
-                       config_loader: Any, pose_name: str) -> ActionResult:
+                       config_loader: Any, pose_name: str,
+                       start_state: Any = None) -> ActionResult:
     """Plan to a named UR10e joint state."""
     joint_states = config_loader.load_named_joint_states('ur10e')
     named_states = joint_states.get('named_joint_states', {})
@@ -19,7 +20,13 @@ def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
             data={'action_name': 'move_to_named_pose', 'pose_name': pose_name},
         )
 
-    result = move_to_joint_state(moveit, arm, robot_model, joint_positions)
+    result = move_to_joint_state(
+        moveit,
+        arm,
+        robot_model,
+        joint_positions,
+        start_state=start_state,
+    )
     result.data.update({
         'action_name': 'move_to_named_pose',
         'pose_name': pose_name,
@@ -28,11 +35,12 @@ def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
 
 
 def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
-                        joint_positions: dict[str, float]) -> ActionResult:
+                        joint_positions: dict[str, float],
+                        start_state: Any = None) -> ActionResult:
     """Plan to explicit joint positions without executing the trajectory."""
     try:
         planning_group = _planning_group_from(moveit)
-        arm.set_start_state_to_current_state()
+        _set_start_state(arm, start_state)
         constraints = _make_joint_constraints(
             robot_model,
             joint_positions,
@@ -60,11 +68,12 @@ def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
         )
 
 
-def move_to_pose(arm: Any, pose: Any, tool_frame: str) -> ActionResult:
+def move_to_pose(arm: Any, pose: Any, tool_frame: str,
+                 start_state: Any = None) -> ActionResult:
     """Plan to a task-space end-effector pose without execution."""
     try:
         pose_msg = _as_pose_stamped(pose)
-        arm.set_start_state_to_current_state()
+        _set_start_state(arm, start_state)
         arm.set_goal_state(pose_stamped_msg=pose_msg, pose_link=tool_frame)
         plan_result = arm.plan()
         return _plan_result(
@@ -87,6 +96,18 @@ def move_to_pose(arm: Any, pose: Any, tool_frame: str) -> ActionResult:
 def _planning_group_from(moveit: Any) -> str:
     """Return the configured planning group name from MoveItPy-like objects."""
     return getattr(moveit, 'planning_group', 'ur_manipulator')
+
+
+def _set_start_state(arm: Any, start_state: Any = None) -> None:
+    """Set a supplied planned start state, or use the live current state."""
+    if start_state is None:
+        arm.set_start_state_to_current_state()
+        return
+
+    try:
+        arm.set_start_state(robot_state=start_state)
+    except TypeError:
+        arm.set_start_state(start_state)
 
 
 def _make_joint_constraints(robot_model: Any,
@@ -156,3 +177,44 @@ def _plan_result(action_name: str, plan_result: Any,
     }
     data.update(extra_data)
     return ActionResult(success=success, message=message, data=data)
+
+
+def planned_state_from_trajectory(robot_model: Any, planning_group: str,
+                                  trajectory: Any) -> Any | None:
+    """Build a RobotState from the final waypoint of a planned trajectory."""
+    if robot_model is None or trajectory is None:
+        return None
+
+    trajectory_msg = _as_robot_trajectory_msg(trajectory)
+    joint_trajectory = getattr(trajectory_msg, 'joint_trajectory', None)
+    if joint_trajectory is None:
+        return None
+    if not joint_trajectory.joint_names or not joint_trajectory.points:
+        return None
+
+    final_point = joint_trajectory.points[-1]
+    try:
+        from moveit.core.robot_state import RobotState
+    except Exception:
+        return None
+
+    robot_state = RobotState(robot_model)
+    positions = [
+        float(position)
+        for position in final_point.positions
+    ]
+    try:
+        joint_model_group = robot_model.get_joint_model_group(planning_group)
+        robot_state.set_joint_group_positions(joint_model_group, positions)
+    except TypeError:
+        robot_state.set_joint_group_positions(planning_group, positions)
+    if hasattr(robot_state, 'update'):
+        robot_state.update()
+    return robot_state
+
+
+def _as_robot_trajectory_msg(trajectory: Any) -> Any:
+    """Convert a MoveItPy RobotTrajectory wrapper to a ROS message if needed."""
+    if hasattr(trajectory, 'get_robot_trajectory_msg'):
+        return trajectory.get_robot_trajectory_msg()
+    return trajectory

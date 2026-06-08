@@ -20,6 +20,7 @@
   <depend>sensor_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>ur_description</depend>
+  <depend>visualization_msgs</depend>
   <depend>xacro</depend>
 
   <test_depend>ament_copyright</test_depend>

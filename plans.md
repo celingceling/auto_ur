@@ -157,8 +157,135 @@
   Result: RViz started, OpenGL initialized, the demo planned successfully, and
   trajectories were published/queued. The command was stopped by the timeout
   because RViz mode intentionally stays alive for video recording.
+
+### 06/08 15:10
+
+- Addressed RViz follow-up issues from video review.
+- Fixed playback snapping by rewriting each queued trajectory's first waypoint
+  to the current visual joint state before replay. This prevents stale planned
+  start states from pulling the visualization back toward the initial pose.
+- Updated `config/rviz/demo_plan_only.rviz` to emphasize the UR visual model:
+  RobotModel now loads from the `/robot_description` topic and TF axes are
+  hidden by default.
+- Synced the updates into the WSL source copy.
+- Ran WSL build:
+  `source /opt/ros/jazzy/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL non-RViz regression:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur demo_plan_only.launch.py`.
+  Result: launch exited with code 0; all plans succeeded; trajectories were
+  published/queued.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 20s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: RViz started, OpenGL initialized, demo planning succeeded, and
+  playback trajectories were queued. The timeout stopped RViz because the RViz
+  path is intentionally kept alive for recording.
 - The only verification warning at that time was the previous ROS package-name
   warning, which was addressed in the later rename session.
+
+### 06/08 15:24
+
+- Investigated the recurring RViz state glitch where the robot briefly snapped
+  back toward the initial pose every half second or so.
+- Identified the likely visualization risk as shared `/joint_states` traffic:
+  `robot_state_publisher` was listening to the global topic, so any other
+  publisher in the graph could briefly drive the visual model.
+- Updated `auto_ur/nodes/trajectory_playback.py` to publish the animated state
+  to both `/joint_states` for MoveItPy compatibility and
+  `/auto_ur/joint_states` for isolated visualization.
+- Updated `launch/demo_plan_only.launch.py` so `robot_state_publisher` remaps
+  `joint_states` to `/auto_ur/joint_states`.
+- Added `auto_ur/nodes/floor_marker_publisher.py`, a packaged console entry
+  point, and a `visualization_msgs` dependency.
+- Updated `config/rviz/demo_plan_only.rviz` to display the floor marker on
+  `/auto_ur/floor_marker`.
+- Synced the updates into the WSL source copy.
+- Ran WSL build:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL non-RViz regression:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur demo_plan_only.launch.py`.
+  Result: launch exited with code 0; all demo plans succeeded; trajectories
+  were published and queued.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 25s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: RViz, playback, robot_state_publisher, floor marker publisher, and
+  the demo node started; RViz initialized OpenGL; all demo plans succeeded; all
+  trajectories were queued. The command was stopped by timeout because RViz mode
+  intentionally remains open for recording.
+
+### 06/08 15:30
+
+- Added readable trajectory labels to the RViz playback path.
+- Updated `auto_ur/nodes/demo_plan_only.py` so each published trajectory is
+  labeled with the action or pick/place segment, such as
+  `move_to_pose:pre_pick`, `pick_and_place_demo:pick`, and
+  `pick_and_place_demo:retreat`.
+- Updated `auto_ur/nodes/trajectory_playback.py` to log `START trajectory: ...`
+  and `END trajectory: ...` when playback actually begins and finishes each
+  animated segment.
+- Updated `auto_ur/nodes/floor_marker_publisher.py` to make the RViz floor a
+  smaller dark gray square centered beneath `base_link`.
+- Synced the updates into the WSL source copy.
+- Ran WSL build:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL non-RViz regression:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur demo_plan_only.launch.py`.
+  Result: launch exited with code 0; labels were published and initial playback
+  start/end logs appeared.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 35s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: RViz mode started the floor marker and logged each playback segment
+  through `pick`, `lift`, `pre_place`, `place`, and `retreat` with matching
+  START/END messages.
+
+### 06/08 15:40
+
+- Fixed pick/place sequence planning so each segment starts from the previous
+  planned segment's final state instead of the live/rest state.
+- Updated primitive planning functions in `auto_ur/primitives/arm_motion.py` to
+  accept an optional `start_state`; they still default to
+  `set_start_state_to_current_state()` for one-shot plans.
+- Added `planned_state_from_trajectory()` to convert a planned trajectory's
+  final waypoint into a MoveIt `RobotState` for the next plan.
+- Updated `auto_ur/skills/pick_place_demo.py` to thread planned start/end
+  states through `pre_pick`, `pick`, `lift`, `pre_place`, `place`, and
+  `retreat`.
+- Updated `auto_ur/nodes/demo_plan_only.py` to thread planned states through
+  the top-level demo sequence as well.
+- Synced the updates into the WSL source copy.
+- Ran WSL focused tests:
+  `source install/setup.bash && python3 -m pytest -q src/auto_ur/test/test_moveit_first_demo.py`.
+  Result: 7 passed, 1 skipped.
+- Ran WSL build:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL non-RViz regression:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur demo_plan_only.launch.py`.
+  Result: all demo plans succeeded; the pick/place sub-plans were generated from
+  chained planned states.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 35s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: RViz mode planned and played the full labeled sequence through
+  `retreat`; the command was stopped by timeout because RViz remains open for
+  recording.
+
+### 06/08 15:46
+
+- Added a configurable playback hold between animated demo segments.
+- Updated `auto_ur/nodes/trajectory_playback.py` with a `hold_duration`
+  parameter and defaulted it to 2 seconds.
+- Updated `launch/demo_plan_only.launch.py` to pass `hold_duration: 2.0` to the
+  playback node.
+- Synced the updates into the WSL source copy.
+- Ran WSL build:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 28s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: playback accepted the new parameter and logs showed roughly 2 seconds
+  between an `END trajectory` message and the next `START trajectory` message.
 
 ### 06/05 17:28
 

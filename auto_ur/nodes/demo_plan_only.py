@@ -69,17 +69,18 @@ def main() -> None:
 def _publish_result_trajectories(result: Any, publisher: Any,
                                  logger: Any) -> None:
     """Publish successful plan result trajectories for RViz playback."""
-    for trajectory in _trajectories_from_result(result):
+    for label, trajectory in _trajectories_from_result(result):
         trajectory_msg = _as_robot_trajectory_msg(trajectory)
         joint_trajectory = getattr(trajectory_msg, 'joint_trajectory', None)
         if joint_trajectory is None:
             continue
         if not joint_trajectory.joint_names or not joint_trajectory.points:
             continue
+        joint_trajectory.header.frame_id = label
         publisher.publish(joint_trajectory)
         logger.info(
             'Published trajectory for RViz playback: '
-            f'{len(joint_trajectory.points)} points'
+            f'{label} ({len(joint_trajectory.points)} points)'
         )
 
 
@@ -90,17 +91,30 @@ def _as_robot_trajectory_msg(trajectory: Any) -> Any:
     return trajectory
 
 
-def _trajectories_from_result(result: Any) -> list[Any]:
+def _trajectories_from_result(result: Any) -> list[tuple[str, Any]]:
     """Return all RobotTrajectory-like objects contained in an ActionResult."""
     trajectories = []
+    action_name = result.data.get('action_name', 'demo_segment')
     trajectory = result.data.get('trajectory')
     if trajectory is not None:
-        trajectories.append(trajectory)
+        label = _label_for_result(result)
+        trajectories.append((label, trajectory))
     for summary in result.data.get('segment_summaries', []):
         trajectory = summary.get('trajectory')
         if trajectory is not None:
-            trajectories.append(trajectory)
+            pose_name = summary.get('pose_name', 'segment')
+            trajectories.append((f'{action_name}:{pose_name}', trajectory))
     return trajectories
+
+
+def _label_for_result(result: Any) -> str:
+    """Build a readable label for one planned demo trajectory."""
+    action_name = result.data.get('action_name', 'demo_segment')
+    for key in ('pose_name', 'joint_state_name'):
+        value = result.data.get(key)
+        if value:
+            return f'{action_name}:{value}'
+    return action_name
 
 
 def _run_sequence(sequence: list[dict[str, Any]], moveit: Any, arm: Any,
@@ -116,6 +130,8 @@ def _run_sequence(sequence: list[dict[str, Any]], moveit: Any, arm: Any,
         'named_cartesian_poses',
         {},
     )
+    planning_group = getattr(moveit, 'planning_group', 'ur_manipulator')
+    planned_start_state = None
 
     for step in sequence:
         action = step.get('action')
@@ -126,20 +142,30 @@ def _run_sequence(sequence: list[dict[str, Any]], moveit: Any, arm: Any,
                 robot_model,
                 loader,
                 step['pose_name'],
+                start_state=planned_start_state,
             )
+            result.data.setdefault('pose_name', step['pose_name'])
         elif action == 'move_to_joint_state':
             result = prims.move_to_joint_state(
                 moveit,
                 arm,
                 robot_model,
                 joint_states[step['joint_state_name']],
+                start_state=planned_start_state,
+            )
+            result.data.setdefault(
+                'joint_state_name',
+                step['joint_state_name'],
             )
         elif action == 'move_to_pose':
             result = prims.move_to_pose(
                 arm,
                 cartesian_poses[step['pose_name']],
                 tool_frame,
+                start_state=planned_start_state,
             )
+            result.data.setdefault('action_name', 'move_to_pose')
+            result.data.setdefault('pose_name', step['pose_name'])
         elif action == 'pick_and_place_demo':
             result = pick_and_place_demo(
                 arm,
@@ -147,11 +173,37 @@ def _run_sequence(sequence: list[dict[str, Any]], moveit: Any, arm: Any,
                 step.get('pick_pose_name', 'pick'),
                 step.get('place_pose_name', 'place'),
                 tool_frame,
+                robot_model=robot_model,
+                planning_group=planning_group,
+                start_state=planned_start_state,
             )
         else:
             raise ValueError(f'Unknown demo action: {action}')
         results.append(result)
+        if result.success:
+            planned_start_state = _end_state_from_result(
+                result,
+                robot_model,
+                planning_group,
+            )
     return results
+
+
+def _end_state_from_result(result: Any, robot_model: Any,
+                           planning_group: str) -> Any:
+    """Return the planned final RobotState from an action result."""
+    end_state = result.data.get('end_state')
+    if end_state is not None:
+        return end_state
+
+    trajectory = result.data.get('trajectory')
+    if trajectory is not None:
+        return prims.planned_state_from_trajectory(
+            robot_model,
+            planning_group,
+            trajectory,
+        )
+    return None
 
 
 if __name__ == '__main__':

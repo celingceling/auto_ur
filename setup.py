@@ -46,6 +46,8 @@ setup(
             'auto_ur.nodes.fake_joint_state_publisher:main',
             'auto_ur_trajectory_playback = '
             'auto_ur.nodes.trajectory_playback:main',
+            'auto_ur_floor_marker_publisher = '
+            'auto_ur.nodes.floor_marker_publisher:main',
         ],
     },
 )

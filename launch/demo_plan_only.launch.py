@@ -116,7 +116,10 @@ def generate_launch_description():
             executable='auto_ur_trajectory_playback',
             name='auto_ur_trajectory_playback',
             output='log',
-            parameters=[{'time_scale': 2.0}],
+            parameters=[{
+                'time_scale': 2.0,
+                'hold_duration': 2.0,
+            }],
         ),
         Node(
             package='robot_state_publisher',
@@ -124,6 +127,17 @@ def generate_launch_description():
             name='robot_state_publisher',
             output='log',
             parameters=[robot_description],
+            remappings=[
+                ('joint_states', '/auto_ur/joint_states'),
+                ('/joint_states', '/auto_ur/joint_states'),
+            ],
+        ),
+        Node(
+            package='auto_ur',
+            executable='auto_ur_floor_marker_publisher',
+            name='auto_ur_floor_marker_publisher',
+            output='log',
+            condition=IfCondition(rviz),
         ),
         rviz_node,
         demo_node,
