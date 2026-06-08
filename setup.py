@@ -16,6 +16,8 @@ setup(
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
         ('share/' + package_name + '/config/demos',
             glob('config/demos/*.yaml')),
+        ('share/' + package_name + '/config/moveit',
+            glob('config/moveit/*')),
         ('share/' + package_name + '/config/poses',
             glob('config/poses/*.yaml')),
         ('share/' + package_name + '/config/robots',
@@ -38,6 +40,8 @@ setup(
         'console_scripts': [
             'auto_ur = auto_ur.auto_ur:main',
             'auto_ur_demo_plan_only = auto_ur.nodes.demo_plan_only:main',
+            'auto_ur_fake_joint_state_publisher = '
+            'auto_ur.nodes.fake_joint_state_publisher:main',
         ],
     },
 )

@@ -1,5 +1,6 @@
 """MoveItPy plan-only UR10e demo node."""
 
+from types import SimpleNamespace
 from typing import Any
 
 from auto_ur import primitives as prims
@@ -11,6 +12,7 @@ from auto_ur.skills import pick_and_place_demo
 def main() -> None:
     """Run the UR10e plan-only MoveItPy demo."""
     import rclpy
+    from moveit.core.robot_state import RobotState  # noqa: F401
     from moveit.planning import MoveItPy
     from rclpy.logging import get_logger
 
@@ -27,7 +29,7 @@ def main() -> None:
         tool_frame = robot.get('tool_frame', 'tool0')
 
         moveit = MoveItPy(node_name='auto_ur_demo_plan_only')
-        moveit.planning_group = planning_group
+        moveit_context = SimpleNamespace(planning_group=planning_group)
         arm = moveit.get_planning_component(planning_group)
         robot_model = moveit.get_robot_model()
         reg = build_default_registry()
@@ -35,7 +37,7 @@ def main() -> None:
         logger.info('Registered actions: ' + ', '.join(reg.names()))
         for result in _run_sequence(
             demo.get('sequence', []),
-            moveit,
+            moveit_context,
             arm,
             robot_model,
             loader,

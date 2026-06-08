@@ -37,6 +37,91 @@
   `colcon build --packages-select auto_ur`, `colcon test --packages-select auto_ur`,
   and `colcon test-result --verbose`.
   Result: 11 tests, 0 errors, 0 failures, 2 skipped.
+
+## Monday, June 8
+
+### 06/08 10:23
+
+- Investigated `ros2 launch auto_ur demo_plan_only.launch.py` startup failure.
+- Launch reached the `auto_ur_demo_plan_only` node and MoveItPy initialization,
+  then failed because `robot_description` was not provided by parameter or
+  topic.
+- Confirmed the newly added official Universal Robots description repo is
+  present at `moveit_ws/src/Universal_Robots_ROS2_Description` and its ROS
+  package name is `ur_description`.
+- Confirmed `ur_description` provides URDF/xacro files for UR10e, but not a
+  MoveIt SRDF or planning pipeline config.
+- Updated `launch/demo_plan_only.launch.py` to generate `robot_description`
+  from `ur_description/urdf/ur.urdf.xacro` with `ur_type:=ur10e`.
+- Added minimal MoveIt config files under `config/moveit/`:
+  `ur10e.srdf`, `kinematics.yaml`, `ompl_planning.yaml`, and `moveit_py.yaml`.
+- Updated `setup.py` so `config/moveit/*` installs with the package.
+- Updated `package.xml` to declare runtime dependencies on `ur_description`
+  and `xacro`.
+- Caveat: `ur_description` must be built and sourced in the same workspace
+  before this launch can resolve `FindPackageShare('ur_description')`.
+
+### 06/08 10:51
+
+- Rebuilt `ur_description` and `auto_ur` in WSL, then verified the installed
+  launch file contained the new parameter blocks.
+- Reran `ros2 launch auto_ur demo_plan_only.launch.py`.
+- Result: the original missing `robot_description` error was fixed; MoveIt
+  loaded the UR10e robot model and KDL kinematics plugin.
+- New startup blocker: no `/joint_states` publisher was running, so MoveIt
+  could not establish a current robot state and aborted planning scene monitor
+  setup.
+- Updated `launch/demo_plan_only.launch.py` to start `joint_state_publisher`
+  and `robot_state_publisher` with the same generated UR10e robot description.
+- Updated `package.xml` to declare `joint_state_publisher` and
+  `robot_state_publisher`.
+
+### 06/08 10:54
+
+- Reran the launch with `joint_state_publisher` and `robot_state_publisher`.
+- Result: `robot_state_publisher` initialized, but `joint_state_publisher`
+  waited for a `robot_description` topic and did not publish `/joint_states`
+  before MoveIt's startup timeout.
+- Replaced the generic `joint_state_publisher` launch entry with a small
+  `auto_ur_fake_joint_state_publisher` console node that publishes the
+  configured UR10e named `demo_start` joint state directly to `/joint_states`.
+- Updated `setup.py` with the new console entry point.
+- Updated `package.xml` to depend on `sensor_msgs` instead of
+  `joint_state_publisher`.
+
+### 06/08 11:05
+
+- Fixed remaining MoveItPy startup/config issues found by repeated WSL launch
+  verification:
+  - Updated `config/moveit/ompl_planning.yaml` to use Jazzy's
+    `planning_plugins` string-array shape.
+  - Updated `auto_ur/nodes/demo_plan_only.py` to avoid assigning custom
+    attributes to the bound `MoveItPy` object and to import `RobotState` before
+    `get_robot_model()`.
+  - Added `config/moveit/joint_limits.yaml` so time parameterization has UR10e
+    velocity and acceleration limits.
+  - Added `config/moveit/moveit_controllers.yaml` with a fake
+    FollowJointTrajectory controller entry for plan-only MoveIt startup.
+  - Increased `wait_for_initial_state_timeout` in
+    `config/moveit/moveit_py.yaml` to make standalone startup less brittle.
+  - Updated `launch/demo_plan_only.launch.py` to shut down the helper
+    publishers when the demo node exits.
+  - Updated `auto_ur/nodes/fake_joint_state_publisher.py` to handle normal
+    launch shutdown without a traceback.
+- Synced the edited files from the Windows checkout to the WSL workspace copy
+  at `/home/celing-24-04/projects_ws/moveit_ws/src/auto_ur`.
+- Ran WSL verification:
+  `source /opt/ros/jazzy/setup.bash && colcon build --packages-select auto_ur`
+  followed by
+  `source install/setup.bash && timeout 40s ros2 launch auto_ur demo_plan_only.launch.py`.
+- Result: build passed, launch exited with code 0, helper nodes exited cleanly,
+  and all demo actions reported success:
+  `move_to_named_pose`, `move_to_joint_state`, `move_to_pose`, and
+  `pick_and_place_demo`.
+- Remaining caveats: MoveIt still logs that no 3D sensor plugins are defined
+  for octomap updates, warns that the planning volume was not specified, and
+  emits a class-loader unload warning on shutdown. These did not prevent
+  startup or plan-only success.
 - The only verification warning at that time was the previous ROS package-name
   warning, which was addressed in the later rename session.
 
