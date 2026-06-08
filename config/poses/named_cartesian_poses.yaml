@@ -3,8 +3,8 @@ named_cartesian_poses:
     frame_id: base_link
     position:
       x: 0.55
-      y: -0.25
-      z: 0.35
+      y: -0.30
+      z: 0.40
     orientation:
       x: 0.0
       y: 1.0
@@ -14,7 +14,7 @@ named_cartesian_poses:
     frame_id: base_link
     position:
       x: 0.55
-      y: -0.25
+      y: -0.30
       z: 0.18
     orientation:
       x: 0.0
@@ -25,8 +25,8 @@ named_cartesian_poses:
     frame_id: base_link
     position:
       x: 0.55
-      y: -0.25
-      z: 0.42
+      y: -0.30
+      z: 0.48
     orientation:
       x: 0.0
       y: 1.0
@@ -35,9 +35,9 @@ named_cartesian_poses:
   pre_place:
     frame_id: base_link
     position:
-      x: 0.45
-      y: 0.25
-      z: 0.35
+      x: 0.55
+      y: 0.30
+      z: 0.40
     orientation:
       x: 0.0
       y: 1.0
@@ -46,8 +46,8 @@ named_cartesian_poses:
   place:
     frame_id: base_link
     position:
-      x: 0.45
-      y: 0.25
+      x: 0.55
+      y: 0.30
       z: 0.18
     orientation:
       x: 0.0
@@ -57,9 +57,9 @@ named_cartesian_poses:
   retreat:
     frame_id: base_link
     position:
-      x: 0.35
+      x: 0.40
       y: 0.0
-      z: 0.45
+      z: 0.50
     orientation:
       x: 0.0
       y: 1.0

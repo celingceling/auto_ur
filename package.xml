@@ -16,7 +16,9 @@
   <depend>python3-yaml</depend>
   <depend>rclpy</depend>
   <depend>robot_state_publisher</depend>
+  <depend>rviz2</depend>
   <depend>sensor_msgs</depend>
+  <depend>trajectory_msgs</depend>
   <depend>ur_description</depend>
   <depend>xacro</depend>
 

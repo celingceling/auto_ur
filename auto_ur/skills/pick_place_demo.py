@@ -34,6 +34,7 @@ def pick_and_place_demo(arm: Any, config_loader: Any,
             'pose_name': pose_name,
             'success': result.success,
             'message': result.message,
+            'trajectory': result.data.get('trajectory'),
         })
         if not result.success:
             return ActionResult(

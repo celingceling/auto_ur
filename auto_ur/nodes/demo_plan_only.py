@@ -1,5 +1,6 @@
 """MoveItPy plan-only UR10e demo node."""
 
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,12 +15,21 @@ def main() -> None:
     import rclpy
     from moveit.core.robot_state import RobotState  # noqa: F401
     from moveit.planning import MoveItPy
+    from rclpy.node import Node
     from rclpy.logging import get_logger
+    from trajectory_msgs.msg import JointTrajectory
 
     rclpy.init()
     logger = get_logger('auto_ur_demo_plan_only')
+    publisher_node = Node('auto_ur_demo_trajectory_publisher')
+    trajectory_publisher = publisher_node.create_publisher(
+        JointTrajectory,
+        'auto_ur/planned_joint_trajectory',
+        10,
+    )
 
     try:
+        time.sleep(0.5)
         loader = ConfigLoader()
         robot_config = loader.load_robot('ur10e')
         demo_config = loader.load_demo('ur10e_plan_only_demo')
@@ -48,8 +58,49 @@ def main() -> None:
                 f'{action_name}: '
                 f'{result.success} - {result.message}'
             )
+            _publish_result_trajectories(result, trajectory_publisher, logger)
+            rclpy.spin_once(publisher_node, timeout_sec=0.0)
+            time.sleep(0.25)
     finally:
+        publisher_node.destroy_node()
         rclpy.shutdown()
+
+
+def _publish_result_trajectories(result: Any, publisher: Any,
+                                 logger: Any) -> None:
+    """Publish successful plan result trajectories for RViz playback."""
+    for trajectory in _trajectories_from_result(result):
+        trajectory_msg = _as_robot_trajectory_msg(trajectory)
+        joint_trajectory = getattr(trajectory_msg, 'joint_trajectory', None)
+        if joint_trajectory is None:
+            continue
+        if not joint_trajectory.joint_names or not joint_trajectory.points:
+            continue
+        publisher.publish(joint_trajectory)
+        logger.info(
+            'Published trajectory for RViz playback: '
+            f'{len(joint_trajectory.points)} points'
+        )
+
+
+def _as_robot_trajectory_msg(trajectory: Any) -> Any:
+    """Convert a MoveItPy RobotTrajectory wrapper to a ROS message if needed."""
+    if hasattr(trajectory, 'get_robot_trajectory_msg'):
+        return trajectory.get_robot_trajectory_msg()
+    return trajectory
+
+
+def _trajectories_from_result(result: Any) -> list[Any]:
+    """Return all RobotTrajectory-like objects contained in an ActionResult."""
+    trajectories = []
+    trajectory = result.data.get('trajectory')
+    if trajectory is not None:
+        trajectories.append(trajectory)
+    for summary in result.data.get('segment_summaries', []):
+        trajectory = summary.get('trajectory')
+        if trajectory is not None:
+            trajectories.append(trajectory)
+    return trajectories
 
 
 def _run_sequence(sequence: list[dict[str, Any]], moveit: Any, arm: Any,

@@ -22,6 +22,8 @@ setup(
             glob('config/poses/*.yaml')),
         ('share/' + package_name + '/config/robots',
             glob('config/robots/*.yaml')),
+        ('share/' + package_name + '/config/rviz',
+            glob('config/rviz/*.rviz')),
         ('share/' + package_name + '/config/safety',
             glob('config/safety/*.yaml')),
     ],
@@ -42,6 +44,8 @@ setup(
             'auto_ur_demo_plan_only = auto_ur.nodes.demo_plan_only:main',
             'auto_ur_fake_joint_state_publisher = '
             'auto_ur.nodes.fake_joint_state_publisher:main',
+            'auto_ur_trajectory_playback = '
+            'auto_ur.nodes.trajectory_playback:main',
         ],
     },
 )

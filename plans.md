@@ -122,6 +122,41 @@
   for octomap updates, warns that the planning volume was not specified, and
   emits a class-loader unload warning on shutdown. These did not prevent
   startup or plan-only success.
+
+### 06/08 14:53
+
+- Implemented the RViz animated plan-only demo path requested for video
+  recording.
+- Updated `launch/demo_plan_only.launch.py` with an `rviz:=true` launch
+  argument, RViz node wiring, RViz-lifetime shutdown behavior, and the new
+  `auto_ur_trajectory_playback` helper node.
+- Added `auto_ur/nodes/trajectory_playback.py` to publish `/joint_states`,
+  queue planned `JointTrajectory` messages, replay them at half speed, and
+  hold one second between segments.
+- Updated `auto_ur/nodes/demo_plan_only.py` to convert MoveItPy
+  `RobotTrajectory` wrappers into ROS trajectory messages and publish them on
+  `auto_ur/planned_joint_trajectory`.
+- Updated `auto_ur/skills/pick_place_demo.py` so each pick/place segment keeps
+  its trajectory for playback.
+- Added `config/rviz/demo_plan_only.rviz` with a robot-only RViz layout.
+- Updated `config/poses/named_cartesian_poses.yaml` to use a more readable
+  top-down pick, lift, transfer, place, and retreat sequence.
+- Updated `package.xml` with `rviz2` and `trajectory_msgs`.
+- Updated `setup.py` to install RViz config and the playback console entry.
+- Synced the edited files into the WSL source copy at
+  `/home/celing-24-04/projects_ws/moveit_ws/src/auto_ur`.
+- Ran WSL build:
+  `source /opt/ros/jazzy/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL non-RViz regression:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur demo_plan_only.launch.py`.
+  Result: launch exited with code 0; all four demo actions reported success;
+  planned trajectories were published and queued for playback.
+- Ran WSL RViz smoke test:
+  `source install/setup.bash && timeout 20s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: RViz started, OpenGL initialized, the demo planned successfully, and
+  trajectories were published/queued. The command was stopped by the timeout
+  because RViz mode intentionally stays alive for video recording.
 - The only verification warning at that time was the previous ROS package-name
   warning, which was addressed in the later rename session.
 

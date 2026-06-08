@@ -4,6 +4,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, Shutdown
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch import LaunchDescription
@@ -33,6 +34,13 @@ def _load_text(package_name, relative_path):
 def generate_launch_description():
     """Generate the plan-only demo launch description."""
     ur_type = LaunchConfiguration('ur_type')
+    rviz = LaunchConfiguration('rviz')
+    rviz_config_path = PathJoinSubstitution([
+        FindPackageShare('auto_ur'),
+        'config',
+        'rviz',
+        'demo_plan_only.rviz',
+    ])
     robot_description_content = Command([
         'xacro ',
         PathJoinSubstitution([
@@ -79,6 +87,18 @@ def generate_launch_description():
             moveit_py_yaml,
         ],
     )
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='log',
+        arguments=['-d', rviz_config_path],
+        parameters=[
+            robot_description,
+            robot_description_semantic,
+        ],
+        condition=IfCondition(rviz),
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -86,11 +106,17 @@ def generate_launch_description():
             default_value='ur10e',
             description='Universal Robots model type passed to ur_description.',
         ),
+        DeclareLaunchArgument(
+            'rviz',
+            default_value='false',
+            description='Launch RViz and keep helper nodes alive for recording.',
+        ),
         Node(
             package='auto_ur',
-            executable='auto_ur_fake_joint_state_publisher',
-            name='auto_ur_fake_joint_state_publisher',
+            executable='auto_ur_trajectory_playback',
+            name='auto_ur_trajectory_playback',
             output='log',
+            parameters=[{'time_scale': 2.0}],
         ),
         Node(
             package='robot_state_publisher',
@@ -99,11 +125,20 @@ def generate_launch_description():
             output='log',
             parameters=[robot_description],
         ),
+        rviz_node,
         demo_node,
         RegisterEventHandler(
             OnProcessExit(
                 target_action=demo_node,
                 on_exit=[Shutdown(reason='auto_ur demo completed')],
             ),
+            condition=UnlessCondition(rviz),
+        ),
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=rviz_node,
+                on_exit=[Shutdown(reason='rviz closed')],
+            ),
+            condition=IfCondition(rviz),
         ),
     ])
