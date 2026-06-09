@@ -287,6 +287,147 @@
   Result: playback accepted the new parameter and logs showed roughly 2 seconds
   between an `END trajectory` message and the next `START trajectory` message.
 
+## Tuesday, June 9
+
+### 06/09 09:55
+
+- Implemented the standalone gripper/object RViz demo plan.
+- Removed the custom floor marker from the arm-only RViz path.
+- Added a combined UR10e + Robotiq 2F-85 xacro and end-effector config.
+- Added standalone gripper/object demo, playback, and object marker nodes.
+- Added `gripper_object_demo.launch.py` and `gripper_object_demo.rviz`.
+- Updated package metadata for `robotiq_description`, `std_msgs`, xacro
+  install rules, end-effector config install rules, and new console scripts.
+- Updated `docs/architecture.md` with the ROS node interaction diagram.
+- During launch verification, the first standalone attempt failed because
+  MoveIt treated the Robotiq visual/collision geometry as part of the planning
+  model and rejected the start state for gripper self-collisions. The standalone
+  launch now gives MoveItPy the arm-only UR10e description while
+  `robot_state_publisher` and RViz receive the combined UR10e + Robotiq
+  description.
+
+```mermaid
+flowchart LR
+  subgraph ArmOnly["Arm-only demo_plan_only.launch.py"]
+    ALaunch["demo_plan_only.launch.py"]
+    ADemo["auto_ur_demo_plan_only\nMoveItPy planning"]
+    APlayback["auto_ur_trajectory_playback\nvisual joint-state replay"]
+    ARSP["robot_state_publisher"]
+    ARViz["RViz"]
+    ALaunch --> ADemo
+    ALaunch --> APlayback
+    ALaunch --> ARSP
+    ALaunch --> ARViz
+    ADemo -- "/auto_ur/planned_joint_trajectory" --> APlayback
+    APlayback -- "/auto_ur/joint_states" --> ARSP
+    ALaunch -- "/robot_description" --> ARSP
+    ALaunch -- "/robot_description" --> ARViz
+    ARSP -- "/tf" --> ARViz
+  end
+
+  subgraph GripperObject["Standalone gripper_object_demo.launch.py"]
+    GLaunch["gripper_object_demo.launch.py"]
+    GDemo["auto_ur_gripper_object_demo\nMoveItPy planning"]
+    GPlayback["auto_ur_gripper_object_playback\narm + Robotiq visual replay"]
+    GObject["auto_ur_grasp_object_marker"]
+    GRSP["robot_state_publisher"]
+    GRViz["RViz"]
+    GLaunch --> GDemo
+    GLaunch --> GPlayback
+    GLaunch --> GObject
+    GLaunch --> GRSP
+    GLaunch --> GRViz
+    GDemo -- "/auto_ur/gripper_object/planned_joint_trajectory" --> GPlayback
+    GPlayback -- "/auto_ur/gripper_object/joint_states" --> GRSP
+    GPlayback -- "/auto_ur/gripper_object/playback_event" --> GObject
+    GObject -- "/auto_ur/gripper_object/object_marker" --> GRViz
+    GLaunch -- "/robot_description" --> GRSP
+    GLaunch -- "/robot_description" --> GRViz
+    GRSP -- "/tf" --> GRViz
+  end
+```
+
+- Ran WSL xacro smoke:
+  `source install/setup.bash && xacro src/auto_ur/urdf/ur10e_robotiq_2f_85.urdf.xacro ur_type:=ur10e name:=ur10e`.
+  Result: generated URDF contained UR10e joints, `tool0`, and Robotiq links.
+- Ran WSL build:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL standalone RViz smoke:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur gripper_object_demo.launch.py`.
+  Result: RViz/OpenGL started, the gripper/object demo planned successfully,
+  all six segment trajectories were published, and playback logged through
+  `gripper_object_demo:retreat`. The command ended by timeout because RViz
+  remains open.
+- Ran WSL arm-only regression:
+  `source install/setup.bash && timeout 30s ros2 launch auto_ur demo_plan_only.launch.py rviz:=true`.
+  Result: the existing arm-only demo planned and replayed successfully; no
+  floor marker node was launched.
+- Ran WSL focused tests:
+  `source install/setup.bash && python3 -m pytest -q src/auto_ur/test/test_moveit_first_demo.py`.
+  Result: 7 passed, 1 skipped.
+
+### 06/09 10:35
+
+- Fixed the standalone gripper/object RViz marker status issue by updating
+  `auto_ur/nodes/grasp_object_marker.py`.
+- The object marker now starts visible at the pick pose instead of publishing an
+  initial hidden/delete state.
+- The marker timestamp is set to zero time so RViz resolves the marker against
+  the latest available TF transform.
+- The marker continues to use `base_link` for pick/place and `tool0` while
+  attached to the gripper.
+- Removed the repeated initial `DELETE` marker behavior; the node now publishes
+  a stable `ADD` marker every tick.
+- Updated the marker node shutdown path to handle launch/timeout shutdown
+  without an `ExternalShutdownException` traceback.
+- Synced the Windows checkout to the WSL workspace copy and rebuilt:
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Ran WSL standalone RViz smoke:
+  `source install/setup.bash && timeout 50s ros2 launch auto_ur gripper_object_demo.launch.py`.
+  Result: RViz/OpenGL started, the object marker node started, the demo planned
+  successfully, all six segment trajectories were published, and playback
+  logged through `gripper_object_demo:retreat`. The command ended by timeout
+  because RViz remains open.
+
+### 06/09 10:55
+
+- Removed the visual object marker path from the standalone gripper demo while
+  keeping the UR10e + Robotiq planning and playback flow.
+- Deleted `auto_ur/nodes/grasp_object_marker.py`.
+- Removed the `auto_ur_grasp_object_marker` launch node from
+  `launch/gripper_object_demo.launch.py`.
+- Removed the RViz Marker display for
+  `/auto_ur/gripper_object/object_marker` from
+  `config/rviz/gripper_object_demo.rviz`.
+- Removed the marker console entry point from `setup.py`.
+- Removed the now-unused `visualization_msgs` package dependency.
+- Updated `docs/architecture.md` so the current node diagram no longer shows
+  the object marker node or topic.
+- Synced the Windows checkout to the WSL workspace copy.
+- Refreshed stale generated install artifacts with
+  `rm -rf build/auto_ur install/auto_ur`, then rebuilt with
+  `source install/setup.bash && colcon build --packages-select auto_ur`.
+  Result: passed.
+- Confirmed installed executables no longer include the removed marker or floor
+  marker scripts:
+  `source install/setup.bash && ros2 pkg executables auto_ur | sort`.
+- Ran WSL standalone RViz smoke against the refreshed install:
+  `source install/setup.bash && timeout 45s ros2 launch auto_ur gripper_object_demo.launch.py`.
+  Result: launch started playback, `robot_state_publisher`, RViz, and the demo
+  node only; no marker node started. The demo planned successfully, published
+  all six segment trajectories, and playback logged through
+  `gripper_object_demo:retreat`. The command ended by timeout because RViz
+  remains open.
+- Cleaned up user-facing gripper demo strings so the terminal no longer
+  describes the sequence as an object visual demo.
+- Rebuilt after the wording cleanup and ran:
+  `source install/setup.bash && timeout 35s ros2 launch auto_ur gripper_object_demo.launch.py rviz:=false`.
+  Result: launch exited with code 0 after the demo node completed; it started
+  playback, `robot_state_publisher`, and the demo node only, then reported
+  `Gripper visual sequence planned successfully`.
+
 ### 06/05 17:28
 
 - Renamed the ROS package identity from the previous camel-case name to

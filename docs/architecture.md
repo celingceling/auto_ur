@@ -47,3 +47,52 @@ trajectories and must not call `execute()`.
 The demo proves that a UR10e MoveIt planning context can produce plans for the
 configured joint and task-space goals. Hardware movement is intentionally out of
 scope.
+
+## RViz Demo Node Flow
+
+The arm-only demo and the standalone gripper demo both use RViz as a
+plan-only visualizer. Playback nodes convert planned trajectories into joint
+states only for visualization; they are not hardware controllers.
+
+The standalone gripper demo intentionally uses two robot descriptions:
+MoveItPy receives the arm-only UR10e model for planning, while
+`robot_state_publisher` and RViz receive the combined UR10e + Robotiq model for
+visualization. This keeps visual gripper geometry from becoming a planning
+collision object in the current plan-only demo.
+
+```mermaid
+flowchart LR
+  subgraph ArmOnly["Arm-only demo_plan_only.launch.py"]
+    ALaunch["demo_plan_only.launch.py"]
+    ADemo["auto_ur_demo_plan_only\nMoveItPy planning"]
+    APlayback["auto_ur_trajectory_playback\nvisual joint-state replay"]
+    ARSP["robot_state_publisher"]
+    ARViz["RViz"]
+    ALaunch --> ADemo
+    ALaunch --> APlayback
+    ALaunch --> ARSP
+    ALaunch --> ARViz
+    ADemo -- "/auto_ur/planned_joint_trajectory" --> APlayback
+    APlayback -- "/auto_ur/joint_states" --> ARSP
+    ALaunch -- "/robot_description" --> ARSP
+    ALaunch -- "/robot_description" --> ARViz
+    ARSP -- "/tf" --> ARViz
+  end
+
+  subgraph GripperDemo["Standalone gripper_object_demo.launch.py"]
+    GLaunch["gripper_object_demo.launch.py"]
+    GDemo["auto_ur_gripper_object_demo\nMoveItPy planning"]
+    GPlayback["auto_ur_gripper_object_playback\narm + Robotiq visual replay"]
+    GRSP["robot_state_publisher"]
+    GRViz["RViz"]
+    GLaunch --> GDemo
+    GLaunch --> GPlayback
+    GLaunch --> GRSP
+    GLaunch --> GRViz
+    GDemo -- "/auto_ur/gripper_object/planned_joint_trajectory" --> GPlayback
+    GPlayback -- "/auto_ur/gripper_object/joint_states" --> GRSP
+    GLaunch -- "/robot_description" --> GRSP
+    GLaunch -- "/robot_description" --> GRViz
+    GRSP -- "/tf" --> GRViz
+  end
+```

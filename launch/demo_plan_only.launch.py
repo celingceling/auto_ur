@@ -132,13 +132,6 @@ def generate_launch_description():
                 ('/joint_states', '/auto_ur/joint_states'),
             ],
         ),
-        Node(
-            package='auto_ur',
-            executable='auto_ur_floor_marker_publisher',
-            name='auto_ur_floor_marker_publisher',
-            output='log',
-            condition=IfCondition(rviz),
-        ),
         rviz_node,
         demo_node,
         RegisterEventHandler(

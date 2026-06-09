@@ -1,0 +1,13 @@
+end_effector:
+  name: robotiq_2f_85
+  parent_link: tool0
+  object_attach_frame: tool0
+  open_position: 0.0
+  closed_position: 0.72
+  joints:
+    robotiq_85_left_knuckle_joint: 1.0
+    robotiq_85_right_knuckle_joint: -1.0
+    robotiq_85_left_inner_knuckle_joint: 1.0
+    robotiq_85_right_inner_knuckle_joint: -1.0
+    robotiq_85_left_finger_tip_joint: -1.0
+    robotiq_85_right_finger_tip_joint: 1.0
