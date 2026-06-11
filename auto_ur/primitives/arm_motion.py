@@ -3,21 +3,32 @@
 from types import SimpleNamespace
 from typing import Any
 
-from auto_ur.core import ActionResult
+from auto_ur.core import Failure
+from auto_ur.core import FailureType
+from auto_ur.core import PrimitiveResult
 
 
 def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
                        config_loader: Any, pose_name: str,
-                       start_state: Any = None) -> ActionResult:
+                       start_state: Any = None) -> PrimitiveResult:
     """Plan to a named UR10e joint state."""
     joint_states = config_loader.load_named_joint_states('ur10e')
     named_states = joint_states.get('named_joint_states', {})
     joint_positions = named_states.get(pose_name)
     if joint_positions is None:
-        return ActionResult(
+        return PrimitiveResult(
             success=False,
             message=f'Unknown named joint state: {pose_name}',
-            data={'action_name': 'move_to_named_pose', 'pose_name': pose_name},
+            error_code=FailureType.POSE_UNKNOWN,
+            failure=Failure(
+                FailureType.POSE_UNKNOWN,
+                f'Unknown named joint state: {pose_name}',
+                {'pose_name': pose_name},
+            ),
+            details={
+                'action_name': 'move_to_named_pose',
+                'pose_name': pose_name,
+            },
         )
 
     result = move_to_joint_state(
@@ -36,7 +47,7 @@ def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
 
 def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
                         joint_positions: dict[str, float],
-                        start_state: Any = None) -> ActionResult:
+                        start_state: Any = None) -> PrimitiveResult:
     """Plan to explicit joint positions without executing the trajectory."""
     try:
         planning_group = _planning_group_from(moveit)
@@ -58,10 +69,16 @@ def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
             extra_data={'joint_positions': joint_positions},
         )
     except Exception as exc:
-        return ActionResult(
+        return PrimitiveResult(
             success=False,
             message=f'move_to_joint_state failed: {exc}',
-            data={
+            error_code=FailureType.UNKNOWN_FAILURE,
+            failure=Failure(
+                FailureType.UNKNOWN_FAILURE,
+                f'move_to_joint_state failed: {exc}',
+                {'joint_positions': joint_positions},
+            ),
+            details={
                 'action_name': 'move_to_joint_state',
                 'joint_positions': joint_positions,
             },
@@ -69,7 +86,7 @@ def move_to_joint_state(moveit: Any, arm: Any, robot_model: Any,
 
 
 def move_to_pose(arm: Any, pose: Any, tool_frame: str,
-                 start_state: Any = None) -> ActionResult:
+                 start_state: Any = None) -> PrimitiveResult:
     """Plan to a task-space end-effector pose without execution."""
     try:
         pose_msg = _as_pose_stamped(pose)
@@ -82,10 +99,16 @@ def move_to_pose(arm: Any, pose: Any, tool_frame: str,
             extra_data={'pose': pose, 'tool_frame': tool_frame},
         )
     except Exception as exc:
-        return ActionResult(
+        return PrimitiveResult(
             success=False,
             message=f'move_to_pose failed: {exc}',
-            data={
+            error_code=FailureType.UNKNOWN_FAILURE,
+            failure=Failure(
+                FailureType.UNKNOWN_FAILURE,
+                f'move_to_pose failed: {exc}',
+                {'pose': pose, 'tool_frame': tool_frame},
+            ),
+            details={
                 'action_name': 'move_to_pose',
                 'pose': pose,
                 'tool_frame': tool_frame,
@@ -118,7 +141,9 @@ def _make_joint_constraints(robot_model: Any,
         return None
 
     try:
-        from moveit.core.kinematic_constraints import construct_joint_constraint
+        from moveit.core.kinematic_constraints import (
+            construct_joint_constraint,
+        )
         from moveit.core.robot_state import RobotState
     except Exception:
         return None
@@ -133,7 +158,7 @@ def _make_joint_constraints(robot_model: Any,
 
 
 def _as_pose_stamped(pose: Any) -> Any:
-    """Convert a pose mapping to PoseStamped, or return PoseStamped-like input."""
+    """Convert a pose mapping, or return PoseStamped-like input."""
     if hasattr(pose, 'header') and hasattr(pose, 'pose'):
         return pose
 
@@ -165,18 +190,31 @@ def _as_pose_stamped(pose: Any) -> Any:
 
 
 def _plan_result(action_name: str, plan_result: Any,
-                 extra_data: dict[str, Any]) -> ActionResult:
-    """Wrap a MoveItPy plan result in ActionResult."""
+                 extra_data: dict[str, Any]) -> PrimitiveResult:
+    """Wrap a MoveItPy plan result in a structured primitive result."""
     success = bool(plan_result)
     trajectory = getattr(plan_result, 'trajectory', None)
     message = 'Planning succeeded' if success else 'Planning failed'
-    data = {
+    details = {
         'action_name': action_name,
         'plan_result': plan_result,
         'trajectory': trajectory,
     }
-    data.update(extra_data)
-    return ActionResult(success=success, message=message, data=data)
+    details.update(extra_data)
+    failure = None
+    if not success:
+        failure = Failure(
+            FailureType.PATH_BLOCKED,
+            f'{action_name} planning failed',
+            details,
+        )
+    return PrimitiveResult(
+        success=success,
+        message=message,
+        error_code=failure.failure_type if failure else None,
+        failure=failure,
+        details=details,
+    )
 
 
 def planned_state_from_trajectory(robot_model: Any, planning_group: str,
@@ -214,7 +252,7 @@ def planned_state_from_trajectory(robot_model: Any, planning_group: str,
 
 
 def _as_robot_trajectory_msg(trajectory: Any) -> Any:
-    """Convert a MoveItPy RobotTrajectory wrapper to a ROS message if needed."""
+    """Convert a MoveItPy RobotTrajectory wrapper to a ROS message."""
     if hasattr(trajectory, 'get_robot_trajectory_msg'):
         return trajectory.get_robot_trajectory_msg()
     return trajectory

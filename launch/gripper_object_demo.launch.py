@@ -1,4 +1,4 @@
-"""Launch the auto_ur UR10e plan-only MoveItPy demo node."""
+"""Launch the standalone UR10e Robotiq gripper RViz demo."""
 
 import os
 
@@ -32,16 +32,34 @@ def _load_text(package_name, relative_path):
 
 
 def generate_launch_description():
-    """Generate the plan-only demo launch description."""
+    """Generate the standalone gripper demo launch description."""
     ur_type = LaunchConfiguration('ur_type')
     rviz = LaunchConfiguration('rviz')
     rviz_config_path = PathJoinSubstitution([
         FindPackageShare('auto_ur'),
         'config',
         'rviz',
-        'demo_plan_only.rviz',
+        'gripper_object_demo.rviz',
     ])
-    robot_description_content = Command([
+    visual_robot_description_content = Command([
+        'xacro ',
+        PathJoinSubstitution([
+            FindPackageShare('auto_ur'),
+            'urdf',
+            'ur10e_robotiq_2f_85.urdf.xacro',
+        ]),
+        ' ur_type:=',
+        ur_type,
+        ' name:=',
+        ur_type,
+    ])
+    visual_robot_description = {
+        'robot_description': ParameterValue(
+            visual_robot_description_content,
+            value_type=str,
+        ),
+    }
+    planning_robot_description_content = Command([
         'xacro ',
         PathJoinSubstitution([
             FindPackageShare('ur_description'),
@@ -53,9 +71,9 @@ def generate_launch_description():
         ' name:=',
         ur_type,
     ])
-    robot_description = {
+    planning_robot_description = {
         'robot_description': ParameterValue(
-            robot_description_content,
+            planning_robot_description_content,
             value_type=str,
         ),
     }
@@ -75,10 +93,10 @@ def generate_launch_description():
     moveit_py_yaml = _load_yaml('auto_ur', 'config/moveit/moveit_py.yaml')
     demo_node = Node(
         package='auto_ur',
-        executable='auto_ur_demo_plan_only',
+        executable='auto_ur_gripper_object_demo',
         output='screen',
         parameters=[
-            robot_description,
+            planning_robot_description,
             robot_description_semantic,
             kinematics_yaml,
             joint_limits_yaml,
@@ -94,7 +112,7 @@ def generate_launch_description():
         output='log',
         arguments=['-d', rviz_config_path],
         parameters=[
-            robot_description,
+            visual_robot_description,
             robot_description_semantic,
         ],
         condition=IfCondition(rviz),
@@ -104,17 +122,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'ur_type',
             default_value='ur10e',
-            description='Universal Robots model type passed to ur_description.',
+            description='Universal Robots model type passed to xacro.',
         ),
         DeclareLaunchArgument(
             'rviz',
-            default_value='false',
-            description='Launch RViz and keep helper nodes alive for recording.',
+            default_value='true',
+            description='Launch RViz and keep helper nodes alive.',
         ),
         Node(
             package='auto_ur',
-            executable='auto_ur_trajectory_playback',
-            name='auto_ur_trajectory_playback',
+            executable='auto_ur_gripper_object_playback',
+            name='auto_ur_gripper_object_playback',
             output='log',
             parameters=[{
                 'time_scale': 2.0,
@@ -126,10 +144,10 @@ def generate_launch_description():
             executable='robot_state_publisher',
             name='robot_state_publisher',
             output='log',
-            parameters=[robot_description],
+            parameters=[visual_robot_description],
             remappings=[
-                ('joint_states', '/auto_ur/joint_states'),
-                ('/joint_states', '/auto_ur/joint_states'),
+                ('joint_states', '/auto_ur/gripper_object/joint_states'),
+                ('/joint_states', '/auto_ur/gripper_object/joint_states'),
             ],
         ),
         rviz_node,
@@ -137,7 +155,7 @@ def generate_launch_description():
         RegisterEventHandler(
             OnProcessExit(
                 target_action=demo_node,
-                on_exit=[Shutdown(reason='auto_ur demo completed')],
+                on_exit=[Shutdown(reason='auto_ur gripper demo completed')],
             ),
             condition=UnlessCondition(rviz),
         ),

@@ -4,6 +4,8 @@ from auto_ur import primitives as prims
 from auto_ur.core import ActionSpec
 from auto_ur.registry.action_registry import ActionRegistry
 from auto_ur.skills import pick_and_place_demo
+from auto_ur.skills import PickObject
+from auto_ur.skills import PlaceObject
 
 
 def build_default_registry() -> ActionRegistry:
@@ -61,5 +63,62 @@ def build_default_registry() -> ActionRegistry:
             supports_plan_only=True,
         ),
         pick_and_place_demo,
+    )
+    reg.register_skill(
+        PickObject,
+        ActionSpec(
+            name='PickObject',
+            tier='skill',
+            description='Pick a known object with symbolic checks.',
+            required_inputs=['object_id'],
+            preconditions=[
+                'object_exists',
+                'pose_known',
+                'confidence_above_threshold',
+                'object_reachable',
+                'hand_empty',
+                'gripper_ready',
+            ],
+            postconditions=['holding_object', 'hand_not_empty'],
+            failure_modes=[
+                'POSE_UNKNOWN',
+                'LOW_CONFIDENCE',
+                'NOT_REACHABLE',
+                'GRASP_FAILED',
+            ],
+            safety_checks=['plan_only'],
+            supports_dry_run=True,
+            supports_plan_only=True,
+        ),
+    )
+    reg.register_skill(
+        PlaceObject,
+        ActionSpec(
+            name='PlaceObject',
+            tier='skill',
+            description='Place a held object at a target location.',
+            required_inputs=['object_id', 'target_id'],
+            preconditions=[
+                'holding_object',
+                'target_pose_known',
+                'target_reachable',
+                'target_clear',
+            ],
+            postconditions=[
+                'object_at_target',
+                'hand_empty',
+                'not_holding_object',
+            ],
+            failure_modes=[
+                'POSE_UNKNOWN',
+                'LOW_CONFIDENCE',
+                'NOT_REACHABLE',
+                'PLACE_FAILED',
+                'DESTINATION_OCCUPIED',
+            ],
+            safety_checks=['plan_only'],
+            supports_dry_run=True,
+            supports_plan_only=True,
+        ),
     )
     return reg

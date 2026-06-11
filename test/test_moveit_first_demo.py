@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from auto_ur.config import ConfigLoader
-from auto_ur.core import ActionResult, ActionSpec
+from auto_ur.core import ActionResult, ActionSpec, PrimitiveResult
 from auto_ur.primitives import move_to_joint_state, move_to_pose
 from auto_ur.registry.default_actions import build_default_registry
 from auto_ur.skills import pick_and_place_demo
@@ -95,7 +95,7 @@ def test_config_loader_helpers_load_demo_configs():
     assert loader.load_safety()['safety']['allow_hardware_execution'] is False
 
 
-def test_default_registry_contains_four_actions():
+def test_default_registry_contains_demo_and_structured_skills():
     """Verify the demo registry exposes exactly the planned actions."""
     reg = build_default_registry()
 
@@ -104,9 +104,12 @@ def test_default_registry_contains_four_actions():
         'move_to_joint_state',
         'move_to_pose',
         'pick_and_place_demo',
+        'PickObject',
+        'PlaceObject',
     ]
-    assert len(reg.list()) == 4
+    assert len(reg.list()) == 6
     assert reg.get('move_to_pose').handler is move_to_pose
+    assert reg.get('PickObject').skill_class is not None
 
 
 def test_primitives_plan_with_fake_arm():
@@ -129,6 +132,7 @@ def test_primitives_plan_with_fake_arm():
     )
 
     assert joint_result.success is True
+    assert isinstance(joint_result, PrimitiveResult)
     assert pose_result.success is True
     assert not any(call[0] == 'execute' for call in fake_arm.calls)
 
@@ -154,9 +158,17 @@ def test_primitives_and_skills_do_not_execute():
     package_root = Path(__file__).resolve().parents[1]
     source_files = list((package_root / 'auto_ur' / 'primitives').glob('*.py'))
     source_files += list((package_root / 'auto_ur' / 'skills').glob('*.py'))
+    forbidden_calls = [
+        '.execute_trajectory(',
+        'arm.execute(',
+        'moveit.execute(',
+        'trajectory.execute(',
+    ]
 
     for source_file in source_files:
-        assert '.execute(' not in source_file.read_text(encoding='utf-8')
+        source = source_file.read_text(encoding='utf-8')
+        for forbidden_call in forbidden_calls:
+            assert forbidden_call not in source
 
 
 @pytest.mark.skipif(

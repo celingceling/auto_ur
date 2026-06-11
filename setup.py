@@ -16,6 +16,8 @@ setup(
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
         ('share/' + package_name + '/config/demos',
             glob('config/demos/*.yaml')),
+        ('share/' + package_name + '/config/end_effectors',
+            glob('config/end_effectors/*.yaml')),
         ('share/' + package_name + '/config/moveit',
             glob('config/moveit/*')),
         ('share/' + package_name + '/config/poses',
@@ -26,6 +28,8 @@ setup(
             glob('config/rviz/*.rviz')),
         ('share/' + package_name + '/config/safety',
             glob('config/safety/*.yaml')),
+        ('share/' + package_name + '/urdf',
+            glob('urdf/*.xacro')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -46,8 +50,10 @@ setup(
             'auto_ur.nodes.fake_joint_state_publisher:main',
             'auto_ur_trajectory_playback = '
             'auto_ur.nodes.trajectory_playback:main',
-            'auto_ur_floor_marker_publisher = '
-            'auto_ur.nodes.floor_marker_publisher:main',
+            'auto_ur_gripper_object_demo = '
+            'auto_ur.nodes.gripper_object_demo:main',
+            'auto_ur_gripper_object_playback = '
+            'auto_ur.nodes.gripper_object_playback:main',
         ],
     },
 )
