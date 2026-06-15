@@ -1,5 +1,7 @@
 # auto_ur Structured Action Library Architecture
 
+Last updated: June 15, 2026
+
 auto_ur is a ROS 2 Jazzy and MoveIt 2 package for plan-only UR-style
 manipulation demos. The current library keeps the existing MoveItPy planning
 backend, but wraps it in structured action contracts so future planners,
@@ -149,6 +151,69 @@ from planner-style dictionaries:
 
 The default registry currently exposes the existing primitive/demo handlers and
 the class-based `PickObject` and `PlaceObject` skills.
+
+## Interface And Task Execution Workflow
+
+The structured library interface is designed so a future planner or executor
+can submit action dictionaries, instantiate skills through the registry, and
+receive structured results. Current demo wrappers still exist for compatibility;
+they call into the same primitives and, for the arm-only pick/place path, the
+class-based `PickObject` and `PlaceObject` skills.
+
+```mermaid
+flowchart TD
+  Caller["Planner, demo wrapper, or future executor"]
+  ActionDict["Action dictionary\nskill + params"]
+  Registry["ActionRegistry\nregisters metadata and skill classes"]
+  Skill["Skill instance\nPickObject / PlaceObject"]
+  Run["Skill.run(world)"]
+  Preconditions["check_preconditions(world)"]
+  Execute["execute(world)"]
+  Postconditions["check_postconditions(world)"]
+  Recovery["local_recovery(world, failure)\nbounded retry only"]
+  World["WorldModel\nobjects, locations, robot state"]
+  Primitives["Primitives\nmotion, gripper, perception, reachability"]
+  MoveIt["MoveItPy / ROS 2 integration\ninside primitives only"]
+  Result["SkillResult / PrimitiveResult\nsuccess, failure, details, world_updates"]
+  External["External planner or executor\nhandles global failure routing later"]
+
+  Caller --> ActionDict
+  ActionDict --> Registry
+  Registry --> Skill
+  Skill --> Run
+  Run --> Preconditions
+  Preconditions <-->|read symbolic state| World
+  Preconditions -->|ok| Execute
+  Preconditions -->|failure| Recovery
+  Execute --> Primitives
+  Primitives --> MoveIt
+  Primitives --> Result
+  Execute -->|world_updates| World
+  Execute -->|failure| Recovery
+  Recovery -->|success| Run
+  Recovery -->|cannot solve locally| Result
+  Run --> Postconditions
+  Postconditions <-->|verify symbolic state| World
+  Postconditions --> Result
+  Result --> Caller
+  Result -->|global decision is out of scope| External
+```
+
+Typical task execution for the structured pick/place path:
+
+1. A caller builds or loads a `WorldModel` containing an object, a target
+   location, and robot state.
+2. The caller creates a skill directly, or asks `ActionRegistry.instantiate()`
+   to build one from an action dictionary.
+3. `Skill.run(world)` checks symbolic preconditions before making primitive
+   calls.
+4. Motion and robot-facing work goes through primitives. Skills do not call
+   MoveItPy or ROS 2 APIs directly.
+5. Successful skill execution returns `world_updates`, which are applied to the
+   `WorldModel`.
+6. Postconditions verify the symbolic result.
+7. The caller receives a `SkillResult`. Any unresolved failure is reported, not
+   globally rerouted inside the library.
 
 ## Plan-Only Safety Boundary
 
