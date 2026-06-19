@@ -73,6 +73,7 @@ class FakeArm:
         return FakePlanResult()
 
 # fake config loader that returns 6 fixed demo poses
+# use this instead of loading YAML bc only testing wrapper behavior
 class FakeConfigLoader:
     """Small config loader exposing named Cartesian poses."""
 
@@ -371,7 +372,7 @@ def test_pick_recovers_unknown_object_with_perception_rescan():
     """Verify missing objects are currently recoverable by perception."""
     world = WorldModel()
 
-    result = PickObject('specimen').run(world)
+    result = PickObject('specimen').run(world) # recovery is here
 
     assert result.success is True
     assert world.object_exists('specimen')
@@ -481,7 +482,8 @@ def test_place_reports_unreachable_target():
     assert result.success is False
     assert result.failure.failure_type == FailureType.NOT_REACHABLE
 
-
+# test occupied destination handling
+# pass means place refuses occupied targets
 def test_place_reports_occupied_destination():
     """Verify occupied targets are reported rather than globally solved."""
     world = make_world()
@@ -493,7 +495,9 @@ def test_place_reports_occupied_destination():
     assert result.success is False
     assert result.failure.failure_type == FailureType.DESTINATION_OCCUPIED
 
-
+# test retry behavior after local recovery
+# pass means skill.run() does precond, execution, recovery retry, updates,
+# and postcond in order
 def test_skill_run_recovers_once_and_applies_execution_updates():
     """Verify Skill.run retries execution once after local recovery."""
     world = make_world()
@@ -507,7 +511,8 @@ def test_skill_run_recovers_once_and_applies_execution_updates():
     assert world.robot['gripper_ready'] is False
     assert result.details['execute_calls'] == 2
 
-
+# test bounded recovery
+# pass means local recovery is bounded, not infinite loop
 def test_skill_run_does_not_recover_forever():
     """Verify Skill.run returns the second execution failure directly."""
     world = make_world()
@@ -520,7 +525,10 @@ def test_skill_run_does_not_recover_forever():
     assert skill.recovery_calls == 1
     assert result.failure.failure_type == FailureType.PLACE_FAILED
 
+# Demo wrapper tests
 
+# test arm-only compatibility wrapper
+# pass menas old demo wrapper still exposes expected playback data w/ structured results
 def test_pick_and_place_demo_wrapper_returns_combined_details():
     """Verify the compatibility wrapper reports the six-segment sequence."""
     result = pick_and_place_demo(
@@ -545,7 +553,8 @@ def test_pick_and_place_demo_wrapper_returns_combined_details():
         'fake-trajectory'
     )
 
-
+# tests current gripper demo behavior
+# pass menas gripper demo still uses older hardcoded named-pose as expected
 def test_gripper_object_demo_uses_fixed_named_pose_sequence():
     """Document that the gripper demo still uses the fixed pose path."""
     result = gripper_object_demo(FakeArm(), FakeConfigLoader(), 'tool0')
