@@ -18,6 +18,9 @@ CONFIG_FILES = [
     'config/poses/named_cartesian_poses.yaml',
     'config/demos/ur10e_plan_only_demo.yaml',
     'config/safety/default_motion_limits.yaml',
+    'config/safety/supervised_hardware_motion_limits.yaml',
+    'config/moveit/moveit_controllers.yaml',
+    'config/moveit/hardware_moveit_controllers.yaml',
 ]
 
 
@@ -93,6 +96,33 @@ def test_config_loader_helpers_load_demo_configs():
     assert 'pick' in loader.load_named_cartesian_poses()['named_cartesian_poses']
     assert loader.load_demo('ur10e_plan_only_demo')['demo']['mode'] == 'plan_only'
     assert loader.load_safety()['safety']['allow_hardware_execution'] is False
+    assert loader.load_safety(
+        'supervised_hardware_motion_limits',
+    )['safety']['allow_hardware_execution'] is True
+
+
+def test_plan_only_and_hardware_controller_configs_are_separate():
+    """Verify hardware execution uses a separate controller config."""
+    package_root = Path(__file__).resolve().parents[1]
+    plan_only_path = package_root / 'config/moveit/moveit_controllers.yaml'
+    hardware_path = (
+        package_root / 'config/moveit/hardware_moveit_controllers.yaml'
+    )
+
+    with plan_only_path.open('r', encoding='utf-8') as config_file:
+        plan_only = yaml.safe_load(config_file)
+    with hardware_path.open('r', encoding='utf-8') as config_file:
+        hardware = yaml.safe_load(config_file)
+
+    plan_only_names = plan_only['moveit_simple_controller_manager'][
+        'controller_names'
+    ]
+    hardware_names = hardware['moveit_simple_controller_manager'][
+        'controller_names'
+    ]
+
+    assert plan_only_names == ['fake_ur_manipulator_controller']
+    assert hardware_names == ['scaled_joint_trajectory_controller']
 
 
 def test_default_registry_contains_demo_and_structured_skills():

@@ -1,5 +1,7 @@
 """Tests for the structured auto_ur action-library contracts."""
 
+from types import SimpleNamespace
+
 from auto_ur.core import ActionResult
 from auto_ur.core import Failure
 from auto_ur.core import FailureType
@@ -9,6 +11,7 @@ from auto_ur.core import SkillResult
 from auto_ur.primitives import check_reachability
 from auto_ur.primitives import close_gripper
 from auto_ur.primitives import detect_object
+from auto_ur.primitives import execute_planned_trajectory
 from auto_ur.primitives import move_to_pose_stub
 from auto_ur.primitives import open_gripper
 from auto_ur.registry.default_actions import build_default_registry
@@ -71,6 +74,24 @@ class FakeArm:
         """Return a fake successful plan."""
         self.calls.append(('plan', {}))
         return FakePlanResult()
+
+
+class FakeExecutionClient:
+    """Small fake hardware client used by execution primitive tests."""
+
+    def __init__(self, success=True):
+        """Create a fake client with a call log."""
+        self.success = success
+        self.calls = []
+
+    def send_goal(self, joint_trajectory, timeout_s=30.0):
+        """Record execution request and return a fake result."""
+        self.calls.append((joint_trajectory, timeout_s))
+        return SimpleNamespace(
+            success=self.success,
+            message='fake execution complete' if self.success else 'blocked',
+        )
+
 
 # fake config loader that returns 6 fixed demo poses
 # use this instead of loading YAML bc only testing wrapper behavior
@@ -190,6 +211,32 @@ def make_world() -> WorldModel:
             },
         },
     )
+
+
+def make_trajectory(joint_names=None, points=None):
+    """Create a JointTrajectory-like test object."""
+    return SimpleNamespace(
+        joint_names=joint_names or [
+            'shoulder_pan_joint',
+            'shoulder_lift_joint',
+            'elbow_joint',
+            'wrist_1_joint',
+            'wrist_2_joint',
+            'wrist_3_joint',
+        ],
+        points=points or [SimpleNamespace(positions=[0.0] * 6)],
+    )
+
+
+def hardware_safety(allow=True):
+    """Create supervised hardware safety settings for tests."""
+    return {
+        'safety': {
+            'allow_hardware_execution': allow,
+            'max_velocity_scale': 0.1,
+            'max_acceleration_scale': 0.1,
+        },
+    }
 
 # tests if result dataclasses are constructible and compatible
 def test_structured_result_types_instantiate():
@@ -350,6 +397,86 @@ def test_move_to_pose_stub_reports_unknown_pose():
 
     assert result.success is False
     assert result.failure.failure_type == FailureType.POSE_UNKNOWN
+
+
+def test_execution_primitive_refuses_when_hardware_disabled():
+    """Verify execution fails closed unless the safety config opts in."""
+    client = FakeExecutionClient()
+
+    result = execute_planned_trajectory(
+        make_trajectory(),
+        client,
+        hardware_safety(allow=False),
+    )
+
+    assert result.success is False
+    assert result.failure.failure_type == FailureType.SAFETY_VIOLATION
+    assert client.calls == []
+
+
+def test_execution_primitive_refuses_missing_trajectory():
+    """Verify execution requires a trajectory-like object."""
+    result = execute_planned_trajectory(
+        None,
+        FakeExecutionClient(),
+        hardware_safety(),
+    )
+
+    assert result.success is False
+    assert result.failure.failure_type == FailureType.SAFETY_VIOLATION
+
+
+def test_execution_primitive_refuses_wrong_joint_names():
+    """Verify execution validates the target controller joint names."""
+    client = FakeExecutionClient()
+    trajectory = make_trajectory(joint_names=['wrong_joint'])
+
+    result = execute_planned_trajectory(
+        trajectory,
+        client,
+        hardware_safety(),
+    )
+
+    assert result.success is False
+    assert result.failure.failure_type == FailureType.SAFETY_VIOLATION
+    assert result.details['expected_joint_names'] == [
+        'shoulder_pan_joint',
+        'shoulder_lift_joint',
+        'elbow_joint',
+        'wrist_1_joint',
+        'wrist_2_joint',
+        'wrist_3_joint',
+    ]
+    assert client.calls == []
+
+
+def test_execution_primitive_accepts_fake_client_when_safe():
+    """Verify a valid trajectory reaches the execution client."""
+    client = FakeExecutionClient()
+    trajectory = make_trajectory()
+
+    result = execute_planned_trajectory(
+        trajectory,
+        client,
+        hardware_safety(),
+    )
+
+    assert result.success is True
+    assert isinstance(result, PrimitiveResult)
+    assert result.details['point_count'] == 1
+    assert client.calls[0][0] is trajectory
+
+
+def test_execution_primitive_maps_client_failure():
+    """Verify execution client failures become structured failures."""
+    result = execute_planned_trajectory(
+        make_trajectory(),
+        FakeExecutionClient(success=False),
+        hardware_safety(),
+    )
+
+    assert result.success is False
+    assert result.failure.failure_type == FailureType.PATH_BLOCKED
 
 # test PickObject and PlaceObject
 # pass means core structure pick/place flow works

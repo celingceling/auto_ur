@@ -54,6 +54,8 @@ setup(
             'auto_ur.nodes.gripper_object_demo:main',
             'auto_ur_gripper_object_playback = '
             'auto_ur.nodes.gripper_object_playback:main',
+            'auto_ur_hardware_execution_demo = '
+            'auto_ur.nodes.hardware_execution_demo:main',
         ],
     },
 )

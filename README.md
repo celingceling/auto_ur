@@ -19,6 +19,97 @@ them in RViz for inspection, but it does not execute motion on hardware.
 Both demos publish planned trajectories for visualization/playback. Playback
 nodes publish joint states for RViz only; they are not hardware controllers.
 
+## Real Robot Preparation
+
+The first real UR robot test should be arm-only and supervised. The existing
+plan-only demos still do not move hardware. Hardware execution is available only
+through the separate opt-in execution demo and only when
+`allow_hardware_execution:=true` is passed.
+
+### Info To Collect At The Robot
+
+- UR model, such as `ur10e`, `ur5e`, or another supported UR type.
+- Robot IP address.
+- Computer network interface and IP address on the robot network.
+- PolyScope version.
+- Whether the External Control URCap is installed.
+- Whether the External Control program exists on the teach pendant.
+- Whether the robot calibration YAML has already been extracted.
+- Mounted tool or gripper type, and whether it has a ROS 2 driver.
+- Nearby obstacles, table location, object locations, and free workspace.
+- Who will control the teach pendant and e-stop during testing.
+
+### Install Or Verify The UR Driver
+
+For ROS 2 Jazzy, use the official Universal Robots ROS 2 driver packages:
+
+```bash
+sudo apt update
+sudo apt install ros-jazzy-ur
+```
+
+If the lab uses a custom UR driver branch, build that source workspace instead
+and source it before launching `auto_ur`.
+
+### Before Going To The Robot
+
+Build and source the workspace:
+
+```bash
+cd ~/projects_ws/moveit_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select auto_ur
+source install/setup.bash
+```
+
+Run the tests and plan-only demos:
+
+```bash
+python3 -m pytest -q test/test_action_library_contracts.py test/test_moveit_first_demo.py
+ros2 launch auto_ur demo_plan_only.launch.py rviz:=true
+ros2 launch auto_ur gripper_object_demo.launch.py rviz:=true
+```
+
+### At The Robot
+
+Use this launch order before any future motion:
+
+1. Verify the `auto_ur` plan-only demo still plans correctly.
+2. Verify network connectivity to the robot IP.
+3. Start the External Control program on the teach pendant.
+4. Launch the official UR driver, or let the hardware demo include it.
+5. Confirm `/joint_states` and the UR trajectory controller are active.
+6. Review the planned trajectory details before enabling execution.
+
+The hardware-readiness launch defaults to no execution:
+
+```bash
+ros2 launch auto_ur hardware_execution_demo.launch.py \
+  ur_type:=ur10e \
+  robot_name:=ur10e \
+  robot_ip:=192.168.0.2 \
+  launch_ur_driver:=false \
+  allow_hardware_execution:=false
+```
+
+Only for a supervised arm-only test, after the UR driver and controller are
+verified, opt in explicitly:
+
+```bash
+ros2 launch auto_ur hardware_execution_demo.launch.py \
+  ur_type:=ur10e \
+  robot_name:=ur10e \
+  robot_ip:=192.168.0.2 \
+  launch_ur_driver:=true \
+  allow_hardware_execution:=true \
+  pose_name:=ready
+```
+
+If your robot model is not `ur10e`, change `ur_type` and add a matching
+`config/robots/<robot_name>.yaml` and
+`config/poses/named_joint_states_<robot_name>.yaml` when model-specific limits
+or named poses are needed.
+
 ## Library Shape
 
 - `auto_ur/core/`: action metadata, structured result dataclasses, and failure
@@ -156,7 +247,11 @@ AUTO_UR_RUN_MOVEIT_TESTS=1 python3 -m pytest -q test/test_moveit_first_demo.py
 
 ## Safety Boundary
 
-This repository currently plans and visualizes only. Primitive and skill code
-must not call trajectory execution APIs. Real gripper commands, perception
-services, reachability checks, and hardware execution should be added behind
-explicit primitive interfaces and reviewed separately.
+This repository plans and visualizes by default. Existing demo launch files do
+not move hardware. Hardware execution is isolated behind
+`execute_planned_trajectory(...)`, the supervised hardware safety config, and
+the separate `hardware_execution_demo.launch.py` launch path.
+
+Real gripper commands, perception services, reachability checks, collision
+objects, and full hardware pick/place remain future work and should be reviewed
+separately.

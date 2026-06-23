@@ -10,9 +10,10 @@ from auto_ur.core import PrimitiveResult
 
 def move_to_named_pose(moveit: Any, arm: Any, robot_model: Any,
                        config_loader: Any, pose_name: str,
-                       start_state: Any = None) -> PrimitiveResult:
-    """Plan to a named UR10e joint state."""
-    joint_states = config_loader.load_named_joint_states('ur10e')
+                       start_state: Any = None,
+                       robot_name: str = 'ur10e') -> PrimitiveResult:
+    """Plan to a named UR joint state."""
+    joint_states = config_loader.load_named_joint_states(robot_name)
     named_states = joint_states.get('named_joint_states', {})
     joint_positions = named_states.get(pose_name)
     if joint_positions is None:
